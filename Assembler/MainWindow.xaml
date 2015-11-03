@@ -1,0 +1,39 @@
+﻿<Window x:Class="Assembler.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Assembler"
+        mc:Ignorable="d"
+        Title="VM Assembler" Height="200" Width="525">
+    <Grid Name="grid" VerticalAlignment="Center">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"></ColumnDefinition>
+            <ColumnDefinition Width="*"></ColumnDefinition>
+            <ColumnDefinition Width="Auto"></ColumnDefinition>
+        </Grid.ColumnDefinitions>
+        
+        <Label Grid.Row="0" Grid.Column="0" Content="VM source assembly file:" Margin="3" Padding="3"></Label>
+        <Label Grid.Row="1" Grid.Column="0" Content="VM binary file:" Margin="3" Padding="3"></Label>
+        <Label Grid.Row="2" Grid.Column="0" Content="Offset:" Margin="3" Padding="3"></Label>
+        <Label Grid.Row="3" Grid.Column="0" Content="Progress:" Margin="3" Padding="3"></Label>
+
+        <Button Name="openButton" Grid.Row="0" Grid.Column="2" Content="Open" Margin="3" Padding="3" Click="openButton_Click"></Button>
+        <Button Name="browseButton" Grid.Row="1" Grid.Column="2" Content="Browse" Margin="3" Padding="3"></Button>
+        <Button Name="assemblyButton" Grid.Row="3" Grid.Column="2" Content="Assembly" Margin="3" Padding="3" Click="assemblyButton_Click"></Button>
+
+        <TextBox Name="openTextBox" Grid.Row="0" Grid.Column="1" IsReadOnly="True" Margin="3" Padding="3"></TextBox>
+        <TextBox Name="browseTextBox" Grid.Row="1" Grid.Column="1" IsReadOnly="True" Margin="3" Padding="3"></TextBox>
+        <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="3">
+            <Label Content="0x" Padding="3" VerticalAlignment="Center" VerticalContentAlignment="Center"></Label>
+            <TextBox Name="offsetTextBox" Text="200" Padding="3" VerticalAlignment="Center" VerticalContentAlignment="Center"></TextBox>
+        </StackPanel>
+        <ProgressBar Name="progressBar" Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="100" Margin="3" Padding="3"></ProgressBar>
+    </Grid>
+</Window>
