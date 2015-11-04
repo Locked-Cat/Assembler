@@ -15,6 +15,7 @@ using System.Windows.Shapes;
 using System.Windows.Forms;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Assembler
 {
@@ -91,6 +92,8 @@ namespace Assembler
             var fileStream = new FileStream(System.IO.Path.Combine(outputFilePath, fileInfo.Name + ".vmbin"), FileMode.Create);
             var output = new BinaryWriter(fileStream);
 
+            progressBar.Value = progressBar.Minimum;
+
             //Magic word
             output.Write('Z');
             output.Write('H');
@@ -105,15 +108,53 @@ namespace Assembler
             output.Seek((int)offset, SeekOrigin.Begin);
 
             TextReader sourceFile = File.OpenText(sourceFilePath);
+            var totalLinesCount = File.ReadAllLines(sourceFilePath).Count();
+
             string line = string.Empty;
+            int rowNumber = 1;
             while ((line = sourceFile.ReadLine()) != null)
             {
+                var parseState = parse(line.ToUpper(), output);
+                if (parseState != ParseState.SUCCESSFUL)
+                {
+                    string errorMessage = string.Empty;
+                    switch (parseState)
+                    {
+                        case ParseState.ILLEGAL_INSTRUCTION:
+                            errorMessage = "UNSUPPORTED INSTRUCTION IN LINE: " + rowNumber.ToString();
+                            break;
+                        case ParseState.INCORRECT_VALUE:
+                            errorMessage = "ILLEGAL NUMBER IN LINE: " + rowNumber.ToString();
+                            break;
+                        case ParseState.UNKNOWN_REGISTER:
+                            errorMessage = "THE REGISTER IS NOT EXIST IN LINE: " + rowNumber.ToString();
+                            break;
+                        default:
+                            break;
+                    }
+                    System.Windows.MessageBox.Show(errorMessage, "Error!", MessageBoxButton.OK);
+                    return;
+                }
+                progressBar.Value = rowNumber / totalLinesCount;
             }
+            sourceFile.Close();
+
+            output.Seek(10, SeekOrigin.Begin);
+            output.Write(binaryFileLength);
+            output.Write(entryAddress);
+            output.Close();
+            fileStream.Close();
+
+            System.Windows.MessageBox.Show("", "Done!", MessageBoxButton.OK);
         }
 
         private ParseState parse(string line, BinaryWriter output)
         {
             line = cleanLine(line);
+
+            if (line == string.Empty)
+                return ParseState.SUCCESSFUL;
+
             if (line.EndsWith(":"))
                 labelDict.Add(line.TrimEnd(new char[] { ':' }), binaryFileLength);
             else
@@ -159,9 +200,13 @@ namespace Assembler
                         }
                     case "END":
                         output.Write((byte)0x03);
-                        if (labelDict.ContainsKey(operandLeft))
+
+                        if (operandLeft != "FOR")
+                            return ParseState.ILLEGAL_INSTRUCTION;
+
+                        if (labelDict.ContainsKey(operandRight))
                         {
-                            output.Write(labelDict[operandLeft]);
+                            output.Write(labelDict[operandRight]);
                             binaryFileLength += 2;
                         }
                         binaryFileLength += 1;
@@ -176,6 +221,13 @@ namespace Assembler
         private string cleanLine(string line)
         {
             var ret = line.Trim();
+            try
+            {
+                ret = ret.Substring(0, ret.IndexOf('!'));
+            }
+            catch
+            {
+            }
             return ret;
         }
 
@@ -266,6 +318,15 @@ namespace Assembler
             }
             else
                 return ret;
+        }
+
+        private void browseButton_Click(object sender, RoutedEventArgs e)
+        {
+            var folderBrowseDialog = new FolderBrowserDialog();
+            if (folderBrowseDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                browseTextBox.Text = folderBrowseDialog.SelectedPath;
+            else
+                browseTextBox.Clear();
         }
     }
 }
