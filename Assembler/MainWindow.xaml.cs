@@ -15,7 +15,6 @@ using System.Windows.Shapes;
 using System.Windows.Forms;
 using System.IO;
 using System.Text.RegularExpressions;
-using System.Threading;
 
 namespace Assembler
 {
@@ -38,7 +37,9 @@ namespace Assembler
         SUCCESSFUL = 0,
         UNKNOWN_REGISTER,
         INCORRECT_VALUE,
-        ILLEGAL_INSTRUCTION
+        ILLEGAL_INSTRUCTION,
+        INCORRECT_LABEL,
+        PROGRAM_END
     }
 
     public partial class MainWindow : Window
@@ -87,6 +88,7 @@ namespace Assembler
 
             labelDict.Clear();
             binaryFileLength = offset;
+            labelProgress.Content = "Progress: 0%";
 
             var fileInfo = new FileInfo(sourceFilePath);
             var fileStream = new FileStream(System.IO.Path.Combine(outputFilePath, fileInfo.Name + ".vmbin"), FileMode.Create);
@@ -109,13 +111,13 @@ namespace Assembler
 
             TextReader sourceFile = File.OpenText(sourceFilePath);
             var totalLinesCount = File.ReadAllLines(sourceFilePath).Count();
-
-            string line = string.Empty;
-            int rowNumber = 1;
+            
+            var line = string.Empty;
+            var rowNumber = 1;
             while ((line = sourceFile.ReadLine()) != null)
             {
                 var parseState = parse(line.ToUpper(), output);
-                if (parseState != ParseState.SUCCESSFUL)
+                if (parseState != ParseState.SUCCESSFUL && parseState != ParseState.PROGRAM_END)
                 {
                     string errorMessage = string.Empty;
                     switch (parseState)
@@ -129,13 +131,27 @@ namespace Assembler
                         case ParseState.UNKNOWN_REGISTER:
                             errorMessage = "THE REGISTER IS NOT EXIST IN LINE: " + rowNumber.ToString();
                             break;
+                        case ParseState.INCORRECT_LABEL:
+                            errorMessage = "THE LABEL IS NOT EXIST IN LINE: " + rowNumber.ToString();
+                            break;
                         default:
                             break;
                     }
                     System.Windows.MessageBox.Show(errorMessage, "Error!", MessageBoxButton.OK);
                     return;
                 }
-                progressBar.Value = rowNumber / totalLinesCount;
+                if (parseState == ParseState.SUCCESSFUL)
+                {
+                    progressBar.Value = progressBar.Maximum * rowNumber / totalLinesCount;
+                    labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
+                    rowNumber += 1;
+                }
+                else
+                {
+                    progressBar.Value = progressBar.Maximum;
+                    labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
+                    break;
+                }
             }
             sourceFile.Close();
 
@@ -145,7 +161,7 @@ namespace Assembler
             output.Close();
             fileStream.Close();
 
-            System.Windows.MessageBox.Show("", "Done!", MessageBoxButton.OK);
+            System.Windows.MessageBox.Show("Done!", "Successful!", MessageBoxButton.OK);
         }
 
         private ParseState parse(string line, BinaryWriter output)
@@ -159,60 +175,65 @@ namespace Assembler
                 labelDict.Add(line.TrimEnd(new char[] { ':' }), binaryFileLength);
             else
             {
-                var match = Regex.Match(line, @"(\w+)\s+(.+)\s+(.+)");
-                string opcode = match.Groups[1].Value;
-                string operandLeft = match.Groups[2].Value;
-                string operandRight = match.Groups[3].Value;
-
-                switch (opcode)
+                if (line.StartsWith("END"))
                 {
-                    case "LDT":
-                        {
-                            output.Write((byte)0x01);
+                    var match = Regex.Match(line, @"(\w+)\s+(.+)");
+                    var label = match.Groups[2].Value;
 
-                            var register = getRegister(operandLeft);
-                            if (register == Register.UNKNOWN)
-                                return ParseState.UNKNOWN_REGISTER; 
-                            output.Write((byte)register);
-
-                            var valueRight = getWordValue(operandRight);
-                            if (valueRight.HasValue == false)
-                                return ParseState.INCORRECT_VALUE;
-                            output.Write((UInt16)valueRight);
-                            binaryFileLength += 4;
-                            break;
-                        }
-                    case "STT":
-                        {
-                            output.Write((byte)0x02);
-
-                            var valueLeft = getWordValue(operandLeft);
-                            if (valueLeft.HasValue == false)
-                                return ParseState.INCORRECT_VALUE;
-                            output.Write((UInt16)valueLeft);
-
-                            var register = getRegister(operandRight);
-                            if (register == Register.UNKNOWN)
-                                return ParseState.UNKNOWN_REGISTER;
-                            output.Write((byte)register);
-                            binaryFileLength += 4;
-                            break;
-                        }
-                    case "END":
+                    if (labelDict.ContainsKey(label))
+                    {
                         output.Write((byte)0x03);
+                        output.Write(labelDict[label]);
+                        binaryFileLength += 3;
+                        return ParseState.PROGRAM_END;
+                    }
+                    else
+                        return ParseState.INCORRECT_LABEL;
+                }
+                else
+                {
+                    var match = Regex.Match(line, @"(\w+)\s+(.+)\s+(.+)");
+                    string opcode = match.Groups[1].Value;
+                    string operandLeft = match.Groups[2].Value;
+                    string operandRight = match.Groups[3].Value;
 
-                        if (operandLeft != "FOR")
+                    switch (opcode)
+                    {
+                        case "LDT":
+                            {
+                                output.Write((byte)0x01);
+
+                                var register = getRegister(operandLeft);
+                                if (register == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+                                output.Write((byte)register);
+
+                                var valueRight = getWordValue(operandRight);
+                                if (valueRight.HasValue == false)
+                                    return ParseState.INCORRECT_VALUE;
+                                output.Write((UInt16)valueRight);
+                                binaryFileLength += 4;
+                                break;
+                            }
+                        case "STT":
+                            {
+                                output.Write((byte)0x02);
+
+                                var valueLeft = getWordValue(operandLeft);
+                                if (valueLeft.HasValue == false)
+                                    return ParseState.INCORRECT_VALUE;
+                                output.Write((UInt16)valueLeft);
+
+                                var register = getRegister(operandRight);
+                                if (register == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+                                output.Write((byte)register);
+                                binaryFileLength += 4;
+                                break;
+                            }
+                        default:
                             return ParseState.ILLEGAL_INSTRUCTION;
-
-                        if (labelDict.ContainsKey(operandRight))
-                        {
-                            output.Write(labelDict[operandRight]);
-                            binaryFileLength += 2;
-                        }
-                        binaryFileLength += 1;
-                        break;
-                    default:
-                        return ParseState.ILLEGAL_INSTRUCTION;
+                    }
                 }
             }
             return ParseState.SUCCESSFUL;

@@ -22,11 +22,11 @@
         <Label Grid.Row="0" Grid.Column="0" Content="VM source assembly file:" Margin="3" Padding="3"></Label>
         <Label Grid.Row="1" Grid.Column="0" Content="VM binary file:" Margin="3" Padding="3"></Label>
         <Label Grid.Row="2" Grid.Column="0" Content="Offset:" Margin="3" Padding="3"></Label>
-        <Label Grid.Row="3" Grid.Column="0" Content="Progress:" Margin="3" Padding="3"></Label>
+        <Label Name="labelProgress" Grid.Row="3" Grid.Column="0" Content="Progress: 0%" Margin="3" Padding="3"></Label>
 
-        <Button Name="openButton" Grid.Row="0" Grid.Column="2" Content="Open" Margin="3" Padding="3" Click="openButton_Click"></Button>
-        <Button Name="browseButton" Grid.Row="1" Grid.Column="2" Content="Browse" Margin="3" Padding="3" Click="browseButton_Click"></Button>
-        <Button Name="assemblyButton" Grid.Row="3" Grid.Column="2" Content="Assembly" Margin="3" Padding="3" Click="assemblyButton_Click"></Button>
+        <Button Name="openButton" Grid.Row="0" Grid.Column="2" Content="_Open" Margin="3" Padding="3" Click="openButton_Click"></Button>
+        <Button Name="browseButton" Grid.Row="1" Grid.Column="2" Content="_Browse" Margin="3" Padding="3" Click="browseButton_Click"></Button>
+        <Button Name="assemblyButton" Grid.Row="3" Grid.Column="2" Content="_Assembly" Margin="3" Padding="3" Click="assemblyButton_Click"></Button>
 
         <TextBox Name="openTextBox" Grid.Row="0" Grid.Column="1" IsReadOnly="True" Margin="3" Padding="3"></TextBox>
         <TextBox Name="browseTextBox" Grid.Row="1" Grid.Column="1" IsReadOnly="True" Margin="3" Padding="3"></TextBox>
