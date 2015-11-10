@@ -30,6 +30,7 @@ namespace Assembler
         A = 4,
         B = 8,
         C = 16,
+        D = 32
     }
 
     enum ParseState
@@ -46,7 +47,7 @@ namespace Assembler
     {
         private Dictionary<string, UInt16> labelDict;
         private UInt16 binaryFileLength;
-        private UInt16 entryAddress;
+        private UInt16 startAddress;
         private UInt16 offset;
 
 
@@ -55,7 +56,7 @@ namespace Assembler
             InitializeComponent();
             labelDict = new Dictionary<string, ushort>();
             binaryFileLength = 0;
-            entryAddress = 0;
+            startAddress = 0;
         }
 
         private void openButton_Click(object sender, RoutedEventArgs e)
@@ -157,7 +158,7 @@ namespace Assembler
 
             output.Seek(10, SeekOrigin.Begin);
             output.Write(binaryFileLength);
-            output.Write(entryAddress);
+            output.Write(startAddress);
             output.Close();
             fileStream.Close();
 
@@ -182,7 +183,7 @@ namespace Assembler
 
                     if (labelDict.ContainsKey(label))
                     {
-                        output.Write((byte)0x03);
+                        output.Write((byte)0x04);
                         output.Write(labelDict[label]);
                         binaryFileLength += 3;
                         return ParseState.PROGRAM_END;
@@ -231,6 +232,33 @@ namespace Assembler
                                 binaryFileLength += 4;
                                 break;
                             }
+                        case "SET":
+                            {
+                                output.Write((byte)0x03);
+
+                                var register = getRegister(operandLeft);
+                                if (register == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+                                output.Write((byte)register);
+
+                                if (register == Register.AH || register == Register.AL)
+                                {
+                                    var rightValue = getByteValue(operandRight);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+                                    output.Write(rightValue.Value);
+                                    output.Write((byte)0x00);
+                                }
+                                else
+                                {
+                                    var rightValue = getWordValue(operandRight);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.UNKNOWN_REGISTER;
+                                    output.Write(rightValue.Value);
+                                }
+                                binaryFileLength += 4;
+                                break;
+                            }
                         default:
                             return ParseState.ILLEGAL_INSTRUCTION;
                     }
@@ -266,6 +294,8 @@ namespace Assembler
                     return Register.B;
                 case "C":
                     return Register.C;
+                case "D":
+                    return Register.D;
                 default:
                     return Register.UNKNOWN;
             }
