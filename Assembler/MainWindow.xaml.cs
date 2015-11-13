@@ -148,19 +148,22 @@ namespace Assembler
                             break;
                     }
                     System.Windows.MessageBox.Show(errorMessage, "Error!", MessageBoxButton.OK);
+                    sourceFile.Close();
+                    output.Close();
+                    fileStream.Close();
                     return;
                 }
                 if (parseState == ParseState.SUCCESSFUL)
                 {
                     progressBar.Value = progressBar.Maximum * rowNumber / totalLinesCount / 2;
-                    labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
+                    labelProgress.Content = "Progress: " + progressBar.Value.ToString("0.0") + "%";
                     rowNumber += 1;
                 }
                 else
                 {
                     //ParseState.PROGRAM_END
                     progressBar.Value = progressBar.Maximum / 2;
-                    labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
+                    labelProgress.Content = "Progress: " + progressBar.Value.ToString("0.0") + "%";
                     break;
                 }
             }
@@ -178,12 +181,14 @@ namespace Assembler
                     output.Write(labelDict[item.Value.Item2]);
                     i += 1;
                     progressBar.Value = progressBar.Maximum / 2 +  progressBar.Maximum / 2 * i / totalItemsCount;
-                    labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
+                    labelProgress.Content = "Progress: " + progressBar.Value.ToString("0.0") + "%";
                 }
                 else
                 {
                     var errorMessage = "THE LABEL IS NOT EXIST IN LINE: " + item.Value.Item1.ToString();
                     System.Windows.MessageBox.Show(errorMessage, "Error!", MessageBoxButton.OK);
+                    output.Close();
+                    fileStream.Close();
                     return;
                 }
             }

@@ -1,5 +1,5 @@
 ﻿START:
-	SET AH #1000D			!4
+	SET AH #65D			!4
 	STT #A000H AH		!4
 	SET AL #66D			!4
 	STT #A002H AL		!4
