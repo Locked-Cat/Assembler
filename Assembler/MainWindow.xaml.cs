@@ -40,21 +40,23 @@ namespace Assembler
         INCORRECT_VALUE,
         ILLEGAL_INSTRUCTION,
         INCORRECT_LABEL,
+        UNMATCHED_OPERANDS,
         PROGRAM_END
     }
 
     public partial class MainWindow : Window
     {
         private Dictionary<string, UInt16> labelDict;
+        private Dictionary<UInt16, Tuple<UInt16, string>> fillDict;
         private UInt16 binaryFileLength;
         private UInt16 startAddress;
         private UInt16 offset;
 
-
         public MainWindow()
         {
             InitializeComponent();
-            labelDict = new Dictionary<string, ushort>();
+            labelDict = new Dictionary<string, UInt16>();
+            fillDict = new Dictionary<UInt16, Tuple<UInt16, string>>();
             binaryFileLength = 0;
             startAddress = 0;
         }
@@ -71,6 +73,8 @@ namespace Assembler
                 openTextBox.Text = openFileDialog.FileName;
             else
                 openTextBox.Clear();
+
+            progressBar.Value = 0;
         }
 
         private void assemblyButton_Click(object sender, RoutedEventArgs e)
@@ -81,23 +85,25 @@ namespace Assembler
                 return;
             }
 
+            labelDict.Clear();
+            fillDict.Clear();
+
             var sourceFilePath = openTextBox.Text;
             var outputFilePath = browseTextBox.Text;
             if (outputFilePath == string.Empty)
                 outputFilePath = Directory.GetCurrentDirectory();
             offset = offsetTextBox.Text == string.Empty ? (UInt16)512 : Convert.ToUInt16(offsetTextBox.Text, 16);
 
-            labelDict.Clear();
             binaryFileLength = offset;
             labelProgress.Content = "Progress: 0%";
 
             var fileInfo = new FileInfo(sourceFilePath);
-            var fileStream = new FileStream(System.IO.Path.Combine(outputFilePath, fileInfo.Name + ".vmbin"), FileMode.Create);
+            var fileStream = new FileStream(System.IO.Path.Combine(outputFilePath, fileInfo.Name.Substring(0, fileInfo.Name.LastIndexOf('.')) + ".vmbin"), FileMode.Create);
             var output = new BinaryWriter(fileStream);
 
             progressBar.Value = progressBar.Minimum;
 
-            //Magic word
+            //magic word
             output.Write('Z');
             output.Write('H');
             output.Write('A');
@@ -114,10 +120,10 @@ namespace Assembler
             var totalLinesCount = File.ReadAllLines(sourceFilePath).Count();
             
             var line = string.Empty;
-            var rowNumber = 1;
+            var rowNumber = (UInt16)1;
             while ((line = sourceFile.ReadLine()) != null)
             {
-                var parseState = parse(line.ToUpper(), output);
+                var parseState = parse(line.ToUpper(), output, rowNumber);
                 if (parseState != ParseState.SUCCESSFUL && parseState != ParseState.PROGRAM_END)
                 {
                     string errorMessage = string.Empty;
@@ -135,6 +141,9 @@ namespace Assembler
                         case ParseState.INCORRECT_LABEL:
                             errorMessage = "THE LABEL IS NOT EXIST IN LINE: " + rowNumber.ToString();
                             break;
+                        case ParseState.UNMATCHED_OPERANDS:
+                            errorMessage = "THE OPERANDS ARE NOT SAME IN LINE: " + rowNumber.ToString();
+                            break;
                         default:
                             break;
                     }
@@ -143,18 +152,41 @@ namespace Assembler
                 }
                 if (parseState == ParseState.SUCCESSFUL)
                 {
-                    progressBar.Value = progressBar.Maximum * rowNumber / totalLinesCount;
+                    progressBar.Value = progressBar.Maximum * rowNumber / totalLinesCount / 2;
                     labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
                     rowNumber += 1;
                 }
                 else
                 {
-                    progressBar.Value = progressBar.Maximum;
+                    //ParseState.PROGRAM_END
+                    progressBar.Value = progressBar.Maximum / 2;
                     labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
                     break;
                 }
             }
             sourceFile.Close();
+
+            var totalItemsCount = fillDict.Count;
+            var i = 0;
+
+            foreach (var item in fillDict)
+            {
+                output.Seek(item.Key, SeekOrigin.Begin);
+
+                if (labelDict.ContainsKey(item.Value.Item2))
+                {
+                    output.Write(labelDict[item.Value.Item2]);
+                    i += 1;
+                    progressBar.Value = progressBar.Maximum / 2 +  progressBar.Maximum / 2 * i / totalItemsCount;
+                    labelProgress.Content = "Progress: " + progressBar.Value.ToString() + "%";
+                }
+                else
+                {
+                    var errorMessage = "THE LABEL IS NOT EXIST IN LINE: " + item.Value.Item1.ToString();
+                    System.Windows.MessageBox.Show(errorMessage, "Error!", MessageBoxButton.OK);
+                    return;
+                }
+            }
 
             output.Seek(10, SeekOrigin.Begin);
             output.Write(binaryFileLength);
@@ -165,31 +197,72 @@ namespace Assembler
             System.Windows.MessageBox.Show("Done!", "Successful!", MessageBoxButton.OK);
         }
 
-        private ParseState parse(string line, BinaryWriter output)
+        private ParseState parse(string line, BinaryWriter output, UInt16 rowNumber)
         {
-            line = cleanLine(line);
+            cleanLine(ref line);
 
             if (line == string.Empty)
                 return ParseState.SUCCESSFUL;
 
             if (line.EndsWith(":"))
+            {
                 labelDict.Add(line.TrimEnd(new char[] { ':' }), binaryFileLength);
+                return ParseState.SUCCESSFUL;
+            }
             else
             {
-                if (line.StartsWith("END"))
+                if (line.StartsWith("END") ||
+                    line.StartsWith("JMP") ||
+                    line.StartsWith("JLE") || line.StartsWith("JL") ||
+                    line.StartsWith("JGE") || line.StartsWith("JG") ||
+                    line.StartsWith("JNE") || line.StartsWith("JE"))
                 {
                     var match = Regex.Match(line, @"(\w+)\s+(.+)");
+                    var opcode = match.Groups[1].Value;
                     var label = match.Groups[2].Value;
 
-                    if (labelDict.ContainsKey(label))
+                    switch (opcode)
                     {
-                        output.Write((byte)0x04);
-                        output.Write(labelDict[label]);
-                        binaryFileLength += 3;
-                        return ParseState.PROGRAM_END;
+                        case "END":
+                            {
+                                output.Write((byte)0x04);
+                                if (labelDict.ContainsKey(label))
+                                {
+                                    output.Write(labelDict[label]);
+                                    binaryFileLength += 3;
+                                    return ParseState.PROGRAM_END;
+                                }
+                                else
+                                    return ParseState.INCORRECT_LABEL;
+                            }
+                        case "JMP":
+                            output.Write((byte)0x05);
+                            break;
+                        case "JLE":
+                            output.Write((byte)0x06);
+                            break;
+                        case "JL":
+                            output.Write((byte)0x07);
+                            break;
+                        case "JGE":
+                            output.Write((byte)0x08);
+                            break;
+                        case "JG":
+                            output.Write((byte)0x09);
+                            break;
+                        case "JE":
+                            output.Write((byte)0x0a);
+                            break;
+                        case "JNE":
+                            output.Write((byte)0x0b);
+                            break;
                     }
-                    else
-                        return ParseState.INCORRECT_LABEL;
+                        
+                    binaryFileLength += 1;
+                    fillDict.Add(binaryFileLength, new Tuple<ushort, string>(rowNumber, label));
+                    output.Write((UInt16)0x0000);
+                    binaryFileLength += 2;
+                    return ParseState.SUCCESSFUL;
                 }
                 else
                 {
@@ -253,31 +326,110 @@ namespace Assembler
                                 {
                                     var rightValue = getWordValue(operandRight);
                                     if (!rightValue.HasValue)
-                                        return ParseState.UNKNOWN_REGISTER;
+                                        return ParseState.INCORRECT_VALUE;
                                     output.Write(rightValue.Value);
                                 }
                                 binaryFileLength += 4;
                                 break;
                             }
+                        case "CMP":
+                            {
+                                if (operandLeft.StartsWith("#") && operandRight.StartsWith("#"))         //CMP V V
+                                {
+                                    output.Write((byte)0x0c);
+
+                                    var leftValue = getWordValue(operandLeft);
+                                    var rightValue = getWordValue(operandRight);
+                                    if (!leftValue.HasValue || !rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write(leftValue.Value);
+                                    output.Write(rightValue.Value);
+                                    binaryFileLength += 5;
+                                }
+                                else
+                                {
+                                    if (operandLeft.StartsWith("#"))                                        //CMP V R
+                                    {
+                                        output.Write((byte)0x0d);
+
+                                        var leftValue = getWordValue(operandLeft);
+                                        if (!leftValue.HasValue)
+                                            return ParseState.INCORRECT_VALUE;
+
+                                        var register = getRegister(operandRight);
+                                        if (register == Register.UNKNOWN)
+                                            return ParseState.UNKNOWN_REGISTER;
+
+                                        if ((register == Register.AH || register == Register.AL) && leftValue.Value > 0xff)
+                                            return ParseState.UNMATCHED_OPERANDS;
+
+                                        output.Write(leftValue.Value);
+                                        output.Write((byte)register);
+                                        binaryFileLength += 4;
+                                    }
+                                    else
+                                    {
+                                        if (operandRight.StartsWith("#"))                                   //CMP R V
+                                        {
+                                            output.Write((byte)0x0e);
+
+                                            var register = getRegister(operandLeft);
+                                            if (register == Register.UNKNOWN)
+                                                return ParseState.UNKNOWN_REGISTER;
+
+                                            var rightValue = getWordValue(operandRight);
+                                            if (!rightValue.HasValue)
+                                                return ParseState.INCORRECT_VALUE;
+
+                                            if ((register == Register.AH || register == Register.AL) && rightValue.Value > 0xff)
+                                                return ParseState.UNMATCHED_OPERANDS;
+
+                                            output.Write((byte)register);
+                                            output.Write(rightValue.Value);
+                                            binaryFileLength += 4;
+                                        }
+                                        else                                                                //CMP R R
+                                        {
+                                            output.Write((byte)0x0f);
+
+                                            var leftRegister = getRegister(operandLeft);
+                                            var rightRegister = getRegister(operandRight);
+
+                                            if (leftRegister == Register.UNKNOWN || rightRegister == Register.UNKNOWN)
+                                                return ParseState.UNKNOWN_REGISTER;
+
+                                            if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                                ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                                return ParseState.UNMATCHED_OPERANDS;
+
+                                            output.Write((byte)leftRegister);
+                                            output.Write((byte)rightRegister);
+                                            binaryFileLength += 3;
+                                        }
+                                    }
+                                }
+                                break;
+                            }
                         default:
                             return ParseState.ILLEGAL_INSTRUCTION;
                     }
+                    return ParseState.SUCCESSFUL;
                 }
             }
-            return ParseState.SUCCESSFUL;
         }
 
-        private string cleanLine(string line)
+        private void cleanLine(ref string line)
         {
-            var ret = line.Trim();
             try
             {
-                ret = ret.Substring(0, ret.IndexOf('!'));
+                line = line.Substring(0, line.IndexOf('!'));
+                line = line.Trim();
             }
             catch
             {
+                line = line.Trim();
             }
-            return ret;
         }
 
         private Register getRegister(string operand)
@@ -308,27 +460,35 @@ namespace Assembler
             {
                 operand = operand.Remove(0, 1);
                 char last = operand[operand.Length - 1];
-                if (char.IsLetter(last))
+
+                try
                 {
-                    operand = operand.Remove(operand.Length - 1, 1);
-                    switch (last)
+                    if (char.IsLetter(last))
                     {
-                        case 'H':
-                            ret = Convert.ToByte(operand, 16);
-                            return ret;
-                        case 'O':
-                            ret = Convert.ToByte(operand, 8);
-                            return ret;
-                        case 'D':
-                            ret = Convert.ToByte(operand, 10);
-                            return ret;
-                        default:
-                            return 0;
+                        operand = operand.Remove(operand.Length - 1, 1);
+                        switch (last)
+                        {
+                            case 'H':
+                                ret = Convert.ToByte(operand, 16);
+                                return ret;
+                            case 'O':
+                                ret = Convert.ToByte(operand, 8);
+                                return ret;
+                            case 'D':
+                                ret = Convert.ToByte(operand, 10);
+                                return ret;
+                            default:
+                                return 0;
+                        }
+                    }
+                    else
+                    {
+                        ret = Convert.ToByte(operand, 10);
+                        return ret;
                     }
                 }
-                else
+                catch
                 {
-                    ret = Convert.ToByte(operand, 10);
                     return ret;
                 }
             }
@@ -343,27 +503,35 @@ namespace Assembler
             {
                 operand = operand.Remove(0, 1);
                 char last = operand[operand.Length - 1];
-                if (char.IsLetter(last))
+
+                try
                 {
-                    operand = operand.Remove(operand.Length - 1, 1);
-                    switch (last)
+                    if (char.IsLetter(last))
                     {
-                        case 'H':
-                            ret = Convert.ToUInt16(operand, 16);
-                            return ret;
-                        case 'O':
-                            ret = Convert.ToUInt16(operand, 8);
-                            return ret;
-                        case 'D':
-                            ret = Convert.ToUInt16(operand, 10);
-                            return ret;
-                        default:
-                            return ret;
+                        operand = operand.Remove(operand.Length - 1, 1);
+                        switch (last)
+                        {
+                            case 'H':
+                                ret = Convert.ToUInt16(operand, 16);
+                                return ret;
+                            case 'O':
+                                ret = Convert.ToUInt16(operand, 8);
+                                return ret;
+                            case 'D':
+                                ret = Convert.ToUInt16(operand, 10);
+                                return ret;
+                            default:
+                                return ret;
+                        }
+                    }
+                    else
+                    {
+                        ret = Convert.ToUInt16(operand, 10);
+                        return ret;
                     }
                 }
-                else
+                catch
                 {
-                    ret = Convert.ToUInt16(operand, 10);
                     return ret;
                 }
             }

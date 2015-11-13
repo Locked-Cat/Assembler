@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Assembler"
         mc:Ignorable="d"
-        Title="VM Assembler" Height="200" Width="525">
+        Title="VM Assembler" Height="200" Width="525" WindowStartupLocation="CenterScreen">
     <Grid Name="grid" VerticalAlignment="Center">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"></RowDefinition>
