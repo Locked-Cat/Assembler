@@ -178,7 +178,7 @@ namespace Assembler
 
                 if (labelDict.ContainsKey(item.Value.Item2))
                 {
-                    output.Write(labelDict[item.Value.Item2]);
+                    output.Write((Int16)(labelDict[item.Value.Item2] - item.Key));
                     i += 1;
                     progressBar.Value = progressBar.Maximum / 2 +  progressBar.Maximum / 2 * i / totalItemsCount;
                     labelProgress.Content = "Progress: " + progressBar.Value.ToString("0.0") + "%";
