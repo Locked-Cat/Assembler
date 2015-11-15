@@ -273,55 +273,84 @@ namespace Assembler
                 {
                     var match = Regex.Match(line, @"(\w+)\s+(.+)\s+(.+)");
                     string opcode = match.Groups[1].Value;
-                    string operandLeft = match.Groups[2].Value;
-                    string operandRight = match.Groups[3].Value;
+                    string leftOperand = match.Groups[2].Value;
+                    string rightOperand = match.Groups[3].Value;
 
                     switch (opcode)
                     {
                         case "LDT":
                             {
-                                output.Write((byte)0x01);
-
-                                var register = getRegister(operandLeft);
-                                if (register == Register.UNKNOWN)
+                                var leftRegister = getRegister(leftOperand);
+                                if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
-                                output.Write((byte)register);
 
-                                var valueRight = getWordValue(operandRight);
-                                if (valueRight.HasValue == false)
-                                    return ParseState.INCORRECT_VALUE;
-                                output.Write((UInt16)valueRight);
-                                binaryFileLength += 4;
+                                if (rightOperand.StartsWith("#"))
+                                {
+                                    output.Write((byte)0x01);
+
+                                    output.Write((byte)leftRegister);
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (rightValue.HasValue == false)
+                                        return ParseState.INCORRECT_VALUE;
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else
+                                {
+                                    var rightRegister = getRegister(rightOperand);
+                                    if (rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
                                 break;
                             }
                         case "STT":
                             {
-                                output.Write((byte)0x02);
-
-                                var valueLeft = getWordValue(operandLeft);
-                                if (valueLeft.HasValue == false)
-                                    return ParseState.INCORRECT_VALUE;
-                                output.Write((UInt16)valueLeft);
-
-                                var register = getRegister(operandRight);
-                                if (register == Register.UNKNOWN)
+                                var rightRegister = getRegister(rightOperand);
+                                if (rightRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
-                                output.Write((byte)register);
-                                binaryFileLength += 4;
+
+                                if (leftOperand.StartsWith("#"))
+                                {
+                                    output.Write((byte)0x02);
+
+                                    var leftValue = getWordValue(leftOperand);
+                                    if (leftValue.HasValue == false)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write((UInt16)leftValue);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 4;
+                                }
+                                else
+                                {
+                                    output.Write((byte)0x27);
+
+                                    var leftRegister = getRegister(leftOperand);
+                                    if (leftRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
                                 break;
                             }
                         case "SET":
                             {
                                 output.Write((byte)0x03);
 
-                                var register = getRegister(operandLeft);
+                                var register = getRegister(leftOperand);
                                 if (register == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
                                 output.Write((byte)register);
 
                                 if (register == Register.AH || register == Register.AL)
                                 {
-                                    var rightValue = getByteValue(operandRight);
+                                    var rightValue = getByteValue(rightOperand);
                                     if (!rightValue.HasValue)
                                         return ParseState.INCORRECT_VALUE;
                                     output.Write(rightValue.Value);
@@ -329,7 +358,7 @@ namespace Assembler
                                 }
                                 else
                                 {
-                                    var rightValue = getWordValue(operandRight);
+                                    var rightValue = getWordValue(rightOperand);
                                     if (!rightValue.HasValue)
                                         return ParseState.INCORRECT_VALUE;
                                     output.Write(rightValue.Value);
@@ -339,12 +368,12 @@ namespace Assembler
                             }
                         case "CMP":
                             {
-                                if (operandLeft.StartsWith("#") && operandRight.StartsWith("#"))         //CMP V V
+                                if (leftOperand.StartsWith("#") && rightOperand.StartsWith("#"))         //CMP V V
                                 {
                                     output.Write((byte)0x0c);
 
-                                    var leftValue = getWordValue(operandLeft);
-                                    var rightValue = getWordValue(operandRight);
+                                    var leftValue = getWordValue(leftOperand);
+                                    var rightValue = getWordValue(rightOperand);
                                     if (!leftValue.HasValue || !rightValue.HasValue)
                                         return ParseState.INCORRECT_VALUE;
 
@@ -354,15 +383,15 @@ namespace Assembler
                                 }
                                 else
                                 {
-                                    if (operandLeft.StartsWith("#"))                                        //CMP V R
+                                    if (leftOperand.StartsWith("#"))                                        //CMP V R
                                     {
                                         output.Write((byte)0x0d);
 
-                                        var leftValue = getWordValue(operandLeft);
+                                        var leftValue = getWordValue(leftOperand);
                                         if (!leftValue.HasValue)
                                             return ParseState.INCORRECT_VALUE;
 
-                                        var register = getRegister(operandRight);
+                                        var register = getRegister(rightOperand);
                                         if (register == Register.UNKNOWN)
                                             return ParseState.UNKNOWN_REGISTER;
 
@@ -375,15 +404,15 @@ namespace Assembler
                                     }
                                     else
                                     {
-                                        if (operandRight.StartsWith("#"))                                   //CMP R V
+                                        if (rightOperand.StartsWith("#"))                                   //CMP R V
                                         {
                                             output.Write((byte)0x0e);
 
-                                            var register = getRegister(operandLeft);
+                                            var register = getRegister(leftOperand);
                                             if (register == Register.UNKNOWN)
                                                 return ParseState.UNKNOWN_REGISTER;
 
-                                            var rightValue = getWordValue(operandRight);
+                                            var rightValue = getWordValue(rightOperand);
                                             if (!rightValue.HasValue)
                                                 return ParseState.INCORRECT_VALUE;
 
@@ -398,8 +427,8 @@ namespace Assembler
                                         {
                                             output.Write((byte)0x0f);
 
-                                            var leftRegister = getRegister(operandLeft);
-                                            var rightRegister = getRegister(operandRight);
+                                            var leftRegister = getRegister(leftOperand);
+                                            var rightRegister = getRegister(rightOperand);
 
                                             if (leftRegister == Register.UNKNOWN || rightRegister == Register.UNKNOWN)
                                                 return ParseState.UNKNOWN_REGISTER;
@@ -414,6 +443,421 @@ namespace Assembler
                                         }
                                     }
                                 }
+                                break;
+                            }
+                        case "CPY":     //CPY R R
+                            {
+                                output.Write((byte)0x10);
+
+                                var leftRegister = getRegister(leftOperand);
+                                var rightRegister = getRegister(rightOperand);
+
+                                if (leftRegister == Register.UNKNOWN || rightRegister == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                    ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                    return ParseState.UNMATCHED_OPERANDS;
+
+                                output.Write((byte)leftRegister);
+                                output.Write((byte)rightRegister);
+                                binaryFileLength += 3;
+
+                                break;
+                            }
+                        case "ADD":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+                                if (leftRegister == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                if (rightOperand.StartsWith("#"))       //ADD R V
+                                {
+                                    output.Write((byte)0x11);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else        //ADD R R
+                                {
+                                    output.Write((byte)0x12);
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                        ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "SUB":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+                                if (leftRegister == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                if (rightOperand.StartsWith("#"))       //SUB R V
+                                {
+                                    output.Write((byte)0x13);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else        //SUB R R
+                                {
+                                    output.Write((byte)0x14);
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                        ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "MUL":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+                                if (leftRegister == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                if (rightOperand.StartsWith("#"))       //MUL R V
+                                {
+                                    output.Write((byte)0x15);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else        //MUL R R
+                                {
+                                    output.Write((byte)0x16);
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "DIV":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+                                if (leftRegister == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                if (rightOperand.StartsWith("#"))       //DIV R V
+                                {
+                                    output.Write((byte)0x17);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else        //DIV R R
+                                {
+                                    output.Write((byte)0x18);
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "SHL":
+                            {
+                                output.Write((byte)0x19);
+
+                                var register = getRegister(leftOperand);
+                                if (register == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                var rightValue = getWordValue(rightOperand);
+                                if (!rightValue.HasValue)
+                                    return ParseState.INCORRECT_VALUE;
+
+                                output.Write((byte)register);
+                                output.Write((UInt16)rightValue);
+                                binaryFileLength += 4;
+                                break;
+                            }
+                        case "SHR":
+                            {
+                                output.Write((byte)0x1a);
+
+                                var register = getRegister(leftOperand);
+                                if (register == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                var rightValue = getWordValue(rightOperand);
+                                if (!rightValue.HasValue)
+                                    return ParseState.INCORRECT_VALUE;
+
+                                output.Write((byte)register);
+                                output.Write((UInt16)rightValue);
+                                binaryFileLength += 4;
+                                break;
+                            }
+                        case "ADC":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+                                if (leftRegister == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                if (rightOperand.StartsWith("#"))       //ADC R V
+                                {
+                                    output.Write((byte)0x1b);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else        //ADC R R
+                                {
+                                    output.Write((byte)0x1c);
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                        ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "SBB":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+                                if (leftRegister == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                if (rightOperand.StartsWith("#"))       //SBB R V
+                                {
+                                    output.Write((byte)0x1d);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else        //SBB R R
+                                {
+                                    output.Write((byte)0x1e);
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                        ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "AND":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+
+                                if (rightOperand.StartsWith("#"))       //AND R V
+                                {
+                                    output.Write((byte)0x1f);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    if ((leftRegister == Register.AH || leftRegister == Register.AL) && rightValue > 0xff)
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else        //AND R R
+                                {
+                                    output.Write((byte)0x24);
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (leftRegister == Register.UNKNOWN || rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                        ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "OR":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+
+                                if (rightOperand.StartsWith("#"))
+                                {
+                                    output.Write((byte)0x20);
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    if ((leftRegister == Register.AH || leftRegister == Register.AL) && rightValue > 0xff)
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else
+                                {
+                                    output.Write((byte)0x25);
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (leftRegister == Register.UNKNOWN || rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                        ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "XOR":
+                            {
+                                var leftRegister = getRegister(leftOperand);
+
+                                if (rightOperand.StartsWith("#"))
+                                {
+                                    output.Write((byte)(0x21));
+
+                                    var rightValue = getWordValue(rightOperand);
+                                    if (!rightValue.HasValue)
+                                        return ParseState.INCORRECT_VALUE;
+
+                                    if ((leftRegister == Register.AH || leftRegister == Register.AL) && rightValue > 0xff)
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((UInt16)rightValue);
+                                    binaryFileLength += 4;
+                                }
+                                else
+                                {
+                                    output.Write((byte)(0x26));
+
+                                    var rightRegister = getRegister(rightOperand);
+
+                                    if (leftRegister == Register.UNKNOWN || rightRegister == Register.UNKNOWN)
+                                        return ParseState.UNKNOWN_REGISTER;
+
+                                    if (((leftRegister == Register.AH || leftRegister == Register.AL) && (rightRegister != Register.AH && rightRegister != Register.AL)) ||
+                                        ((rightRegister == Register.AH || rightRegister == Register.AL) && (leftRegister != Register.AH && leftRegister != Register.AL)))
+                                        return ParseState.UNMATCHED_OPERANDS;
+
+                                    output.Write((byte)leftRegister);
+                                    output.Write((byte)rightRegister);
+                                    binaryFileLength += 3;
+                                }
+                                break;
+                            }
+                        case "RCL":
+                            {
+                                output.Write((byte)0x22);
+
+                                var register = getRegister(leftOperand);
+                                if (register == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                var rightValue = getWordValue(rightOperand);
+                                if (!rightValue.HasValue)
+                                    return ParseState.INCORRECT_VALUE;
+
+                                output.Write((byte)register);
+                                output.Write((UInt16)rightValue);
+                                binaryFileLength += 4;
+                                break;
+                            }
+                        case "RCR":
+                            {
+                                output.Write((byte)0x23);
+
+                                var register = getRegister(leftOperand);
+                                if (register == Register.UNKNOWN)
+                                    return ParseState.UNKNOWN_REGISTER;
+
+                                var rightValue = getWordValue(rightOperand);
+                                if (!rightValue.HasValue)
+                                    return ParseState.INCORRECT_VALUE;
+
+                                output.Write((byte)register);
+                                output.Write((UInt16)rightValue);
+                                binaryFileLength += 4;
                                 break;
                             }
                         default:
