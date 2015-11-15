@@ -274,7 +274,7 @@ namespace Assembler
                                 if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (rightOperand.StartsWith("#"))
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))
                                 {
                                     output.Write((byte)0x01);
 
@@ -304,7 +304,7 @@ namespace Assembler
                                 if (rightRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (leftOperand.StartsWith("#"))
+                                if (leftOperand.StartsWith("#") || leftOperand.StartsWith("$"))
                                 {
                                     output.Write((byte)0x02);
 
@@ -359,7 +359,7 @@ namespace Assembler
                             }
                         case "CMP":
                             {
-                                if (leftOperand.StartsWith("#") && rightOperand.StartsWith("#"))         //CMP V V
+                                if ((leftOperand.StartsWith("#") || leftOperand.StartsWith("$")) && (rightOperand.StartsWith("#") || rightOperand.StartsWith("$")))         //CMP V V
                                 {
                                     output.Write((byte)0x0c);
 
@@ -374,7 +374,7 @@ namespace Assembler
                                 }
                                 else
                                 {
-                                    if (leftOperand.StartsWith("#"))                                        //CMP V R
+                                    if (leftOperand.StartsWith("#") || leftOperand.StartsWith("$"))                                        //CMP V R
                                     {
                                         output.Write((byte)0x0d);
 
@@ -395,7 +395,7 @@ namespace Assembler
                                     }
                                     else
                                     {
-                                        if (rightOperand.StartsWith("#"))                                   //CMP R V
+                                        if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))                                   //CMP R V
                                         {
                                             output.Write((byte)0x0e);
 
@@ -462,7 +462,7 @@ namespace Assembler
                                 if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (rightOperand.StartsWith("#"))       //ADD R V
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))       //ADD R V
                                 {
                                     output.Write((byte)0x11);
 
@@ -499,7 +499,7 @@ namespace Assembler
                                 if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (rightOperand.StartsWith("#"))       //SUB R V
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("#"))       //SUB R V
                                 {
                                     output.Write((byte)0x13);
 
@@ -536,7 +536,7 @@ namespace Assembler
                                 if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (rightOperand.StartsWith("#"))       //MUL R V
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))       //MUL R V
                                 {
                                     output.Write((byte)0x15);
 
@@ -569,7 +569,7 @@ namespace Assembler
                                 if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (rightOperand.StartsWith("#"))       //DIV R V
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))       //DIV R V
                                 {
                                     output.Write((byte)0x17);
 
@@ -636,7 +636,7 @@ namespace Assembler
                                 if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (rightOperand.StartsWith("#"))       //ADC R V
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))       //ADC R V
                                 {
                                     output.Write((byte)0x1b);
 
@@ -673,7 +673,7 @@ namespace Assembler
                                 if (leftRegister == Register.UNKNOWN)
                                     return ParseState.UNKNOWN_REGISTER;
 
-                                if (rightOperand.StartsWith("#"))       //SBB R V
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))       //SBB R V
                                 {
                                     output.Write((byte)0x1d);
 
@@ -708,7 +708,7 @@ namespace Assembler
                             {
                                 var leftRegister = getRegister(leftOperand);
 
-                                if (rightOperand.StartsWith("#"))       //AND R V
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))       //AND R V
                                 {
                                     output.Write((byte)0x1f);
 
@@ -745,7 +745,7 @@ namespace Assembler
                             {
                                 var leftRegister = getRegister(leftOperand);
 
-                                if (rightOperand.StartsWith("#"))
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("$"))
                                 {
                                     output.Write((byte)0x20);
 
@@ -783,7 +783,7 @@ namespace Assembler
                             {
                                 var leftRegister = getRegister(leftOperand);
 
-                                if (rightOperand.StartsWith("#"))
+                                if (rightOperand.StartsWith("#") || rightOperand.StartsWith("#"))
                                 {
                                     output.Write((byte)(0x21));
 
@@ -933,7 +933,20 @@ namespace Assembler
                 }
             }
             else
-                return ret;
+            {
+                if (operand.StartsWith("$"))
+                {
+                    if (operand.Length > 2)
+                        return ret;
+                    else
+                    {
+                        ret = (byte)operand[1];
+                        return ret;
+                    }
+                }
+                else
+                    return ret;
+            }
         }
 
         private UInt16? getWordValue(string operand)
@@ -972,6 +985,17 @@ namespace Assembler
                 }
                 catch
                 {
+                    return ret;
+                }
+            }
+            else
+            if (operand.StartsWith("$"))
+            {
+                if (operand.Length > 2)
+                    return ret;
+                else
+                {
+                    ret = (UInt16)operand[1];
                     return ret;
                 }
             }
